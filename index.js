@@ -35,6 +35,7 @@ export default class WebTorrentPocp extends WebTorrent {
       // here goes the info during the handshake
     //   console.log('forcing deny');
     //   wire.wt_pocp.deny();
+    
       if(this._client == 'seeder'){
         console.log('allowing');
         wire.wt_pocp.allow();
@@ -71,19 +72,26 @@ export default class WebTorrentPocp extends WebTorrent {
       debug('Error', err)
     })
 
-    wire.wt_pocp.on('signature-request', () => {
+
+    wire.wt_pocp.on('signature-request', (data) => {
+      console.log('data content: ' + data.toString())
+      console.log('torrent hash: ' + data.hash)
       wire.wt_pocp.sendSignedReceipt();
       console.log('sent signed receipt');
     })
+
+
 
     wire.wt_pocp.on('signature-response', () => {
       console.log('end of the communication');
     })
 
+
     wire.on('upload', function(bytes){
-      console.log('torrent progress: ' + torrent.progress);
+      console.log(this._client +' for torrent progress: ' + torrent.progress);
       if(torrent.progress == 1){
-        wire.wt_pocp.sendReceipt();
+        console.log('torrent.name -> ' + torrent.name)
+        wire.wt_pocp.sendReceipt(torrent.name);
       }
     });
   }
