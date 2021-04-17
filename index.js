@@ -1,6 +1,8 @@
 import wt_pocp from '../wt_pocp/index.js'
 import Debug from 'debug'
 import WebTorrent from 'webtorrent'
+import Web3 from 'web3';
+import ChainAdapter from './eth.js';
 const debug = Debug('WebTorrentPocp')
 
 export default class WebTorrentPocp extends WebTorrent {
@@ -10,6 +12,7 @@ export default class WebTorrentPocp extends WebTorrent {
   constructor (opts, client) {
     super(opts);
     this._client = client;
+    this._chainAdapter = new ChainAdapter();
   }
 
   seed () { 
@@ -74,15 +77,30 @@ export default class WebTorrentPocp extends WebTorrent {
 
 
     wire.wt_pocp.on('signature-request', (data) => {
-      console.log('data content: ' + data.toString())
       console.log('torrent hash: ' + data.hash)
-      wire.wt_pocp.sendSignedReceipt();
-      console.log('sent signed receipt');
+
+      const receiptRequest = {
+        torrentHash: data.hash
+      }
+      
+      /***********
+       * signing *
+      ************/
+
+      this._chainAdapter.signReceipt(receiptRequest).then((signature) => {
+        const receiptResponse = {
+          request: receiptRequest,
+          signature: signature
+        }
+        wire.wt_pocp.sendSignedReceipt(receiptResponse);
+        console.log('sent signed receipt');
+      });
     })
 
 
 
-    wire.wt_pocp.on('signature-response', () => {
+    wire.wt_pocp.on('signature-response', (signedReceipt) => {
+      console.log('signature: '+ signedReceipt.signature);
       console.log('end of the communication');
     })
 
