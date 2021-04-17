@@ -30,8 +30,8 @@ export default class WebTorrentPocp extends WebTorrent {
     wire.use(wt_pocp())
     wire.wt_pocp.on('pocp_handshake', (handshake) => {
       debug('Got extended handshake', handshake)
-      console.log('got extended handshake: ' + handshake);
-      console.log(handshake);
+      //console.log('got extended handshake: ' + handshake);
+      //console.log(handshake);
       // here goes the info during the handshake
     //   console.log('forcing deny');
     //   wire.wt_pocp.deny();
@@ -57,21 +57,36 @@ export default class WebTorrentPocp extends WebTorrent {
     // seeder says we don't have permissions
     if(this._client=='peer'){
       wire.wt_pocp.on('negative', () => {
-        console.log('getting negative response')
+        //console.log('getting negative response')
       })
     }
 
     // Pay peers who we are downloading from
     wire.wt_pocp.on('positive', ()=>{
-        console.log('getting positive response')
+        //console.log('getting positive response')
     });
 
 
     wire.wt_pocp.on('warning', (err) => {
       debug('Error', err)
     })
-  }
 
+    wire.wt_pocp.on('signature-request', () => {
+      wire.wt_pocp.sendSignedReceipt();
+      console.log('sent signed receipt');
+    })
+
+    wire.wt_pocp.on('signature-response', () => {
+      console.log('end of the communication');
+    })
+
+    wire.on('upload', function(bytes){
+      console.log('torrent progress: ' + torrent.progress);
+      if(torrent.progress == 1){
+        wire.wt_pocp.sendReceipt();
+      }
+    });
+  }
   _setupTorrent (torrent) {
     if (torrent.__setupWithPocp) {
       return torrent
