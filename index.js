@@ -1,18 +1,16 @@
 import wt_pocp from '../wt_pocp/index.js'
 import Debug from 'debug'
 import WebTorrent from 'webtorrent'
-import Web3 from 'web3';
 import ChainAdapter from './eth.js';
 const debug = Debug('WebTorrentPocp')
 
 export default class WebTorrentPocp extends WebTorrent {
 
-  _client = null; //_client is used for testing -- "seeder" you re the seeder "peer" you re the peer 
-
-  constructor (opts, client) {
-    super(opts);
-    this._client = client;
-    this._chainAdapter = new ChainAdapter();
+  constructor (props, client) {
+    super(props);
+    this._client = client;  //_client is used for testing -- "seeder" you re the seeder "peer" you re the peer 
+    this._accountAddress = '0xEE75Ec552285ac96A39708318aBb16B692dA2D22'; //props.address;
+    this._chainAdapter = new ChainAdapter({address:this._accountAddress});
   }
 
   seed () { 
@@ -29,20 +27,44 @@ export default class WebTorrentPocp extends WebTorrent {
 
   _setupWire (torrent, wire) {
     debug('attaching wire')
-
-    wire.use(wt_pocp())
-    wire.wt_pocp.on('pocp_handshake', (handshake) => {
+    const _this = this;
+    wire.use(wt_pocp());
+    wire.wt_pocp.on('pocp_handshake', async function (handshake) {
       debug('Got extended handshake', handshake)
-      //console.log('got extended handshake: ' + handshake);
-      //console.log(handshake);
-      // here goes the info during the handshake
-    //   console.log('forcing deny');
-    //   wire.wt_pocp.deny();
-    
-      if(this._client == 'seeder'){
+      if(_this._client == 'peer'){
+        wire.wt_pocp.sendCheckin();
+      }
+      const isAuthorized = await _this._chainAdapter.hasPermissions('0xE2c9BDEE13513e6ecD27dab715D3e95D7A31Ceab', 'torrent'); // replace 'torrent' with infohash
+      if(isAuthorized){
         console.log('allowing');
         wire.wt_pocp.allow();
+      } else {
+        console.log('denying');
+        wire.wt_pocp.deny();
       }
+
+      // const _onRequest = wire.wt_pocp._onRequest
+      // wire.wt_pocp._onRequest = function (index, offset, length) {
+      //   //_this.emit('request', index, offset, length)
+
+      //   // Call onRequest after the handlers triggered by this event have been called
+      //   const _arguments = arguments
+
+      //   if(isAuthorized){
+      //     setTimeout(function () {
+      //       if (!wire.wt_pocp.amForceChoking) {
+      //         console.log('responding to request')
+      //         _onRequest.apply(wire, _arguments)
+      //       } else {
+      //         console.log('force choking peer')
+      //       }
+      //     }, 0)
+      //   }
+      // }
+      // if(this.client == 'seeder'){
+      //   console.log('allowing');
+      //   wire.wt_pocp.allow();
+      // }
     })
     // read the smart contract of peers for requesting data from us
     //wire.wt_pocp.on('request', this._chargePeerForRequest.bind(this, wire, torrent))
@@ -58,16 +80,19 @@ export default class WebTorrentPocp extends WebTorrent {
     //   })
     // })
 
+    wire.wt_pocp.on('check-in', async function() {
+      console.log('got checkin');
+    })
+
     // seeder says we don't have permissions
-    if(this._client=='peer'){
-      wire.wt_pocp.on('negative', () => {
-        //console.log('getting negative response')
-      })
-    }
+    wire.wt_pocp.on('no-autohorized', () => {
+      //console.log('getting negative response')
+    })
 
     // Pay peers who we are downloading from
-    wire.wt_pocp.on('positive', ()=>{
+    wire.wt_pocp.on('authorized', ()=>{
         //console.log('getting positive response')
+        console.log(wire.requests[0]);
     });
 
 
@@ -105,12 +130,13 @@ export default class WebTorrentPocp extends WebTorrent {
     })
 
 
-    wire.on('upload', function(bytes){
-      console.log(this._client +' for torrent progress: ' + torrent.progress);
+    wire.on('upload', function(){ //considering on 'upload'
+      console.log(_this._client +' for torrent progress: ' + torrent.progress);
       if(torrent.progress == 1){
         console.log('torrent.name -> ' + torrent.name)
         wire.wt_pocp.sendReceipt(torrent.name);
       }
+      
     });
   }
   _setupTorrent (torrent) {
@@ -125,7 +151,7 @@ export default class WebTorrentPocp extends WebTorrent {
     torrent.on('error', (err) => {
       debug('torrent error:', err)
     })
-
+    
     torrent.__setupWithPocp = true
   }
 }
